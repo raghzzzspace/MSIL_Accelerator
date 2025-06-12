@@ -1,3 +1,5 @@
 function Regression() {
-    return(<h1>Regression</h1>);
+    return( <div className="main-content">
+            <h1>Regression</h1>
+        </div>);
 }

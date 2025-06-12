@@ -4,6 +4,7 @@ from scipy.stats import zscore
 import category_encoders as ce
 import plotly.express as px
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler, Normalizer, LabelEncoder, OrdinalEncoder
+from scipy.cluster.hierarchy import linkage, fcluster
 
 class EDA:
 
@@ -194,3 +195,143 @@ class EDA:
 
         except Exception as e:
             print(f"Error generating {graph} plot: {e}")
+
+    #univariate analyis
+    def univariate_analysis(self, data, type1, type2, column):
+            if type1 == 'categorical':
+                if type2 == 'countplot':
+                    value_counts = data[column].value_counts().to_dict()
+                    return {'type': 'countplot', 'data': value_counts}
+
+                elif type2 == 'piechart':
+                    value_counts = data[column].value_counts(normalize=True) * 100
+                    value_counts = value_counts.round(2).to_dict()
+                    return {'type': 'piechart', 'data': value_counts}
+
+            else:  # numerical data
+                if type2 == 'histogram':
+                    counts, bins = np.histogram(data[column].dropna())
+                    return {
+                        'type': 'histogram',
+                        'bins': bins.tolist(),
+                        'counts': counts.tolist()
+                    }
+
+                elif type2 == 'distplot':
+                    sorted_values = sorted(data[column].dropna().tolist())
+                    return {'type': 'distplot', 'data': sorted_values}
+
+                elif type2 == 'boxplot':
+                    desc = data[column].describe()
+                    q1 = desc['25%']
+                    q3 = desc['75%']
+                    iqr = q3 - q1
+                    lower_whisker = max(data[column].min(), q1 - 1.5 * iqr)
+                    upper_whisker = min(data[column].max(), q3 + 1.5 * iqr)
+                    outliers = data[(data[column] < lower_whisker) | (data[column] > upper_whisker)][column].tolist()
+
+                    return {
+                        'type': 'boxplot',
+                        'min': desc['min'],
+                        'q1': q1,
+                        'median': desc['50%'],
+                        'q3': q3,
+                        'max': desc['max'],
+                        'outliers': outliers
+                    }
+
+            return {'error': 'Invalid type or plot option'}
+    
+    def multivariate_analysis(self,df, no_of_col_to_do_analysis, type1, type2, type3, chosen_cols):
+            result = {}
+
+            # Pairplot: comparing multiple numerical columns
+            if type3 == 'pairplot':
+                cols = chosen_cols.get("cols", [])[:no_of_col_to_do_analysis]
+                result = {
+                    "type": "pairplot",
+                    "cols": cols,
+                    "rows": df[cols].dropna().to_dict(orient="records")
+                }
+
+            # Numerical vs Numerical
+            elif type1 == 'numerical' and type2 == 'numerical':
+                x = chosen_cols.get("x")
+                y = chosen_cols.get("y")
+
+                if type3 == 'scatterplot':
+                    result = {
+                        "type": "scatterplot",
+                        "x": df[x].dropna().tolist(),
+                        "y": df[y].dropna().tolist()
+                    }
+
+                elif type3 == 'lineplot':
+                    result = {
+                        "type": "lineplot",
+                        "x": df[x].dropna().tolist(),
+                        "y": df[y].dropna().tolist()
+                    }
+
+            # Numerical vs Categorical
+            elif type1 == 'numerical' and type2 == 'categorical':
+                num_col = chosen_cols.get("x")
+                cat_col = chosen_cols.get("y")
+
+                if type3 == 'barplot':
+                    grouped = df.groupby(cat_col)[num_col].mean()
+                    result = {
+                        "type": "barplot",
+                        "labels": grouped.index.tolist(),
+                        "values": grouped.values.tolist()
+                    }
+
+                elif type3 == 'boxplot':
+                    labels = df[cat_col].unique().tolist()
+                    series = [df[df[cat_col] == val][num_col].dropna().tolist() for val in labels]
+                    result = {
+                        "type": "boxplot",
+                        "labels": labels,
+                        "series": series
+                    }
+
+                elif type3 == 'displot':
+                    labels = df[cat_col].unique().tolist()
+                    series = [df[df[cat_col] == val][num_col].dropna().tolist() for val in labels]
+                    result = {
+                        "type": "displot",
+                        "labels": labels,
+                        "series": series
+                    }
+
+            # Categorical vs Categorical
+            elif type1 == 'categorical' and type2 == 'categorical':
+                x = chosen_cols.get("x")
+                y = chosen_cols.get("y")
+                crosstab = pd.crosstab(df[x], df[y])
+
+                if type3 == 'heatmap':
+                    result = {
+                        "type": "heatmap",
+                        "xLabels": crosstab.columns.tolist(),
+                        "yLabels": crosstab.index.tolist(),
+                        "matrix": crosstab.values.tolist()
+                    }
+
+                elif type3 == 'clustermap':
+                    scaled = StandardScaler(with_mean=False).fit_transform(crosstab.values)
+                    linkage_matrix = linkage(scaled, method='ward')
+                    clusters = fcluster(linkage_matrix, t=2, criterion='maxclust')
+                    result = {
+                        "type": "clustermap",
+                        "xLabels": crosstab.columns.tolist(),
+                        "yLabels": crosstab.index.tolist(),
+                        "matrix": crosstab.values.tolist(),
+                        "rowClusters": clusters.tolist()
+                    }
+
+            else:
+                result = {"error": "Invalid combination or unsupported plot type."}
+
+            return result
+

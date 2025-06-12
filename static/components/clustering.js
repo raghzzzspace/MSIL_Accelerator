@@ -1,3 +1,5 @@
 function Clustering() {
-    return(<h1>Clustering</h1>);
+    return( <div className="main-content">
+            <h1>Clustering</h1>
+        </div>);
 }

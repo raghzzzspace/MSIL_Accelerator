@@ -1,3 +1,5 @@
 function Classification() {
-    return(<h1>Classification</h1>);
+    return( <div className="main-content">
+            <h1>Classification</h1>
+        </div>);
 }
