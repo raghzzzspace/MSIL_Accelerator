@@ -5,6 +5,12 @@ import category_encoders as ce
 import plotly.express as px
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler, Normalizer, LabelEncoder, OrdinalEncoder
 from scipy.cluster.hierarchy import linkage, fcluster
+from sklearn.impute import KNNImputer, SimpleImputer
+from sklearn.experimental import enable_iterative_imputer  # noqa
+from sklearn.impute import IterativeImputer
+import numpy as np
+import pandas as pd
+import random
 
 class EDA:
 
@@ -25,27 +31,65 @@ class EDA:
         data.drop_duplicates()
         return data
     
-    def na_values(self, data, method = 'drop', fill_with = None):
-        if method == 'drop':
-            data.dropna()
-        elif method == 'fillwith':
-            for column in data.columns:
-                if data[column].isnull().any():
-                    if fill_with == 'mean':
-                        data[column] = data[column].fillna(data[column].mean())
-                    elif fill_with == 'median':
-                        data[column] = data[column].fillna(data[column].median())                        
-                    elif fill_with == 'mode':
-                        data[column] = data[column].fillna(data[column].mode().iloc[0])
-                    elif fill_with == 'ffill':
-                        data[column] = data[column].fillna(method='ffill')
-                    elif fill_with == 'bfill':
-                        data[column] = data[column].fillna(method='bfill')
-                    elif isinstance(fill_with, dict):
-                        data[column] = data[column].fillna(fill_with.get(column, 0))
-                    else:
-                        data[column] = data[column].fillna(fill_with)
-        return data
+    def fill_missing_values(self,df,column,ctype,method):
+        '''
+        /*for numerical -mean/median/arbitrary(NA by maybe 0 or -1)/random/end of distribution/knn imputation/iterative imputation*</div>
+        /*for categorical - mode/missing value/ffill/bfill/knn imputation/missing indicator true/false/iterative imputation*/
+           
+        '''
+        if ctype == 'numerical':
+                if method == 'mean':
+                    df[column] = df[column].fillna(df[column].mean())
+                elif method == 'median':
+                    df[column] = df[column].fillna(df[column].median())
+                elif method == 'arbitrary':
+                    df[column] = df[column].fillna(-1)
+                elif method == 'random':
+                    non_null_vals = df[column].dropna().values
+                    df[column] = df[column].apply(lambda x: random.choice(non_null_vals) if pd.isnull(x) else x)
+                elif method == 'end_of_distribution':
+                    extreme_val = df[column].mean() + 3 * df[column].std()
+                    df[column] = df[column].fillna(extreme_val)
+                elif method == 'knn':
+                    imputer = KNNImputer(n_neighbors=5)
+                    df[[column]] = imputer.fit_transform(df[[column]])
+                elif method == 'iterative':
+                    imputer = IterativeImputer()
+                    df[[column]] = imputer.fit_transform(df[[column]])
+
+        elif ctype == 'categorical':
+                if method == 'mode':
+                    df[column] = df[column].fillna(df[column].mode()[0])
+                elif method == 'missing':
+                    df[column] = df[column].fillna("Missing")
+                elif method == 'ffill':
+                    df[column] = df[column].fillna(method='ffill')
+                elif method == 'bfill':
+                    df[column] = df[column].fillna(method='bfill')
+                elif method == 'random':
+                    non_null_vals = df[column].dropna().values
+                    df[column] = df[column].apply(lambda x: random.choice(non_null_vals) if pd.isnull(x) else x)
+                elif method == 'missing_indicator':
+                    df[column + "_missing"] = df[column].isnull()
+                elif method == 'knn':
+                    # KNN can only be used on numerical; we encode first temporarily
+                    df_temp = df.copy()
+                    df_temp[column] = df_temp[column].astype('category').cat.codes.replace(-1, np.nan)
+                    imputer = KNNImputer(n_neighbors=5)
+                    df_temp[[column]] = imputer.fit_transform(df_temp[[column]])
+                    df[column] = df_temp[column].astype(int).astype(str)
+                elif method == 'iterative':
+                    df_temp = df.copy()
+                    df_temp[column] = df_temp[column].astype('category').cat.codes.replace(-1, np.nan)
+                    imputer = IterativeImputer()
+                    df_temp[[column]] = imputer.fit_transform(df_temp[[column]])
+                    df[column] = df_temp[column].astype(int).astype(str)
+
+        return df
+
+
+
+        
     
     def remove_outliers(self, data, method = 'IQR', threshold = 3, upper = None, lower = None):
         '''

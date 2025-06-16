@@ -6,4 +6,3 @@ function EDAUL() {
     );
 }
 
-export default EDAUL;

@@ -49,6 +49,23 @@ def multivariate():
     except Exception as e:
         print("Error in /multivariate:", e)
         return {"error": str(e)}, 500
+    
+@app.post('/fill_missing')
+def fill_missing():
+    global df, eda
+    req = request.get_json()
+    type = req.get("type")
+    column = req.get("column")
+    method = req.get("method")
+
+    if df is None or column not in df.columns:
+        return {"error": "Invalid column or no data uploaded"}, 400
+
+    try:
+        return eda.fill_missing_values(df, column, type, method)
+    except Exception as e:
+        print("Error in /fill_missing:", e)
+        return {"error": str(e)}, 500
 
 if __name__ == '__main__':
     app.run(debug=True)
